@@ -1,5 +1,6 @@
 import { Redirect, Route } from 'react-router-dom';
 import {
+  IonAlert,
   IonApp,
   IonIcon,
   IonLabel,
@@ -11,77 +12,120 @@ import {
 } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import { ellipse, square, triangle } from 'ionicons/icons';
-import Tab1 from './pages/Tab1';
-import Tab2 from './pages/Tab2';
-import Tab3 from './pages/Tab3';
+import { auth } from './firebase';
+import LoginTab from './pages/LoginTab';
+import MenuTab from './pages/MenuTab';
+import SignupTab from './pages/SignupTab';
+import { RoleProvider } from './context/RoleContext';
 
-/* Core CSS required for Ionic components to work properly */
 import '@ionic/react/css/core.css';
-
-/* Basic CSS for apps built with Ionic */
 import '@ionic/react/css/normalize.css';
 import '@ionic/react/css/structure.css';
 import '@ionic/react/css/typography.css';
-
-/* Optional CSS utils that can be commented out */
 import '@ionic/react/css/padding.css';
 import '@ionic/react/css/float-elements.css';
 import '@ionic/react/css/text-alignment.css';
 import '@ionic/react/css/text-transformation.css';
 import '@ionic/react/css/flex-utils.css';
 import '@ionic/react/css/display.css';
-
-/**
- * Ionic Dark Mode
- * -----------------------------------------------------
- * For more info, please see:
- * https://ionicframework.com/docs/theming/dark-mode
- */
-
-/* import '@ionic/react/css/palettes/dark.always.css'; */
-/* import '@ionic/react/css/palettes/dark.class.css'; */
 import '@ionic/react/css/palettes/dark.system.css';
 
-/* Theme variables */
 import './theme/variables.css';
+import React, { useEffect, useState } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import DocumentsPage from './pages/DocumentsPage';
+import DocumentDetailPage from './pages/DocumentDetailPage';
 
 setupIonicReact();
 
-const App: React.FC = () => (
-  <IonApp>
-    <IonReactRouter>
-      <IonTabs>
-        <IonRouterOutlet>
-          <Route exact path="/tab1">
-            <Tab1 />
-          </Route>
-          <Route exact path="/tab2">
-            <Tab2 />
-          </Route>
-          <Route path="/tab3">
-            <Tab3 />
-          </Route>
-          <Route exact path="/">
-            <Redirect to="/tab1" />
-          </Route>
-        </IonRouterOutlet>
-        <IonTabBar slot="bottom">
-          <IonTabButton tab="tab1" href="/tab1">
-            <IonIcon aria-hidden="true" icon={triangle} />
-            <IonLabel>Tab 1</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="tab2" href="/tab2">
-            <IonIcon aria-hidden="true" icon={ellipse} />
-            <IonLabel>Tab 2</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="tab3" href="/tab3">
-            <IonIcon aria-hidden="true" icon={square} />
-            <IonLabel>Tab 3</IonLabel>
-          </IonTabButton>
-        </IonTabBar>
-      </IonTabs>
-    </IonReactRouter>
-  </IonApp>
-);
+const App: React.FC = () => {
+  const [showAlert, setShowAlert] = useState(false);
+  const [user, setUser] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const removeFocus = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+
+    // Quitamos el foco al cargar la app para evitar aria-hidden warnings
+    removeFocus();
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleMenuTabClick = (e: CustomEvent) => {
+    if (!user) {
+      e.preventDefault();
+      setShowAlert(true);
+    }
+  };
+
+  return (
+      <IonApp>
+        <RoleProvider>
+          <IonReactRouter>
+            <IonTabs>
+              <IonRouterOutlet>
+                <Route exact path="/Login" component={LoginTab} />
+                <Route exact path="/Register" component={SignupTab} />
+                <Route
+                  path="/menu"
+                  render={() => {
+                    removeFocus(); // quitamos foco al entrar a /menu
+                    return user ? <MenuTab /> : <Redirect to="/login" />;
+                  }}
+                />
+                <Route exact path="/">
+                  {user ? <Redirect to="/menu" /> : <Redirect to="/login" />}
+                </Route>
+                <Route path="/documents" component={DocumentsPage} exact />
+                <Route path="/documents/:id" component={DocumentDetailPage} exact />
+
+              </IonRouterOutlet>
+
+              {!loading && (
+                <IonTabBar slot="bottom">
+                  {!user && (
+                    <>
+                      <IonTabButton tab="login" href="/Login">
+                        <IonIcon icon={triangle} />
+                        <IonLabel>Login</IonLabel>
+                      </IonTabButton>
+                      <IonTabButton tab="register" href="/Register">
+                        <IonIcon icon={square} />
+                        <IonLabel>Register</IonLabel>
+                      </IonTabButton>
+                    </>
+                  )}
+                  {user && (
+                    <IonTabButton tab="menu" href="/Menu" onClick={handleMenuTabClick}>
+                      <IonIcon icon={ellipse} />
+                      <IonLabel>Menu</IonLabel>
+                    </IonTabButton>
+                  )}
+                </IonTabBar>
+              )}
+            </IonTabs>
+          </IonReactRouter>
+
+          <IonAlert
+            isOpen={showAlert}
+            onDidDismiss={() => setShowAlert(false)}
+            header="Acceso denegado"
+            message="Necesitás iniciar sesión para acceder al menú."
+            buttons={['OK']}
+          />
+        </RoleProvider>
+      </IonApp>
+  );
+};
 
 export default App;
